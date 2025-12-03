@@ -8,7 +8,8 @@
 // personality.
 // -----------------------------------------------------------------------------
 
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { loadThree } from './three-loader.js';
+const THREE = await loadThree();
 
 // -----------------------------------------------------------------------------
 // Texture helpers (tiny canvas textures to keep a retro look)

@@ -6,9 +6,11 @@
 // - NPCs occasionally reference war events or nearby areas.
 // -----------------------------------------------------------------------------
 
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { loadThree } from './three-loader.js';
 import { Random } from './utils.js';
 import { CHUNK_SIZE } from './world.js';
+
+const THREE = await loadThree();
 
 export class NpcManager {
   constructor(scene, nameGen, warManager) {

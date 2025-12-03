@@ -8,7 +8,9 @@
 // - It also manages collisions and an "exit" interaction.
 // -----------------------------------------------------------------------------
 
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { loadThree } from './three-loader.js';
+
+const THREE = await loadThree();
 
 export class InteriorsManager {
   constructor(scene, nameGen) {
