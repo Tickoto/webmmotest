@@ -16,6 +16,15 @@ export class PlayerCharacter {
   constructor(scene, isFemale, startPos) {
     this.scene = scene;
     this.isFemale = isFemale;
+    this.heightPreset = 'medium';
+    this.bodyPreset = 'average';
+    this.headPreset = 'round';
+    this.skinTone = 'light';
+    this.hairStyle = 'short';
+    this.hairColorName = 'brown';
+    this.baseHeight = 1.6;
+    this.equipmentState = { head: null, torso: null, legs: null, feet: null, accessory: null };
+    this.genderLabel = isFemale ? 'Female' : 'Male';
 
     this.group = new THREE.Group();
     this.position = startPos.clone();
@@ -212,8 +221,8 @@ export class PlayerCharacter {
     this.velocityY += gravity * dt;
     this.position.y += this.velocityY * dt;
 
-    if (this.position.y <= 1.6) {
-      this.position.y = 1.6;
+    if (this.position.y <= this.baseHeight) {
+      this.position.y = this.baseHeight;
       this.velocityY = 0;
       this.onGround = true;
     }
@@ -237,14 +246,16 @@ export class PlayerCharacter {
   setGender(isFemale) {
     this.isFemale = isFemale;
     this.torso.scale.x = isFemale ? 0.9 : 1.1;
+    this.genderLabel = isFemale ? 'Female' : 'Male';
   }
 
   applyBodyPreset(preset) {
+    this.bodyPreset = preset;
     if (preset === 'slim') {
       this.torso.scale.set(0.85, 1.05, 0.9);
       this.leftLeg.scale.set(0.8, 1.0, 1.0);
       this.rightLeg.scale.set(0.8, 1.0, 1.0);
-    } else if (preset === 'heavy') {
+    } else if (preset === 'stocky') {
       this.torso.scale.set(1.25, 1.1, 1.0);
       this.leftLeg.scale.set(1.1, 1.0, 1.0);
       this.rightLeg.scale.set(1.1, 1.0, 1.0);
@@ -256,6 +267,7 @@ export class PlayerCharacter {
   }
 
   applyHeadPreset(preset) {
+    this.headPreset = preset;
     if (preset === 'sharp') {
       this.head.scale.set(0.7, 0.7, 0.5);
     } else if (preset === 'angular') {
@@ -266,6 +278,7 @@ export class PlayerCharacter {
   }
 
   applySkinTone(tone) {
+    this.skinTone = tone;
     let color = 0xd0b090;
     if (tone === 'pale') color = 0xf0d0c0;
     else if (tone === 'tan') color = 0xc09060;
@@ -277,6 +290,7 @@ export class PlayerCharacter {
   }
 
   applyHairStyle(style) {
+    this.hairStyle = style;
     this.currentHairStyle = style;
     for (const [k, mesh] of Object.entries(this.hairMeshes)) {
       mesh.visible = k === style;
@@ -284,11 +298,8 @@ export class PlayerCharacter {
   }
 
   applyHairColor(colorName) {
-    let color = 0x201010;
-    if (colorName === 'brown') color = 0x402018;
-    else if (colorName === 'blonde') color = 0xc0b060;
-    else if (colorName === 'red') color = 0x802020;
-    else if (colorName === 'neon') color = 0x30ffcc;
+    this.hairColorName = colorName;
+    const color = this._colorFromHairName(colorName);
     for (const mesh of Object.values(this.hairMeshes)) {
       if (mesh.material) {
         mesh.material.color.setHex(color);
@@ -303,6 +314,7 @@ export class PlayerCharacter {
 
   // Called by inventory when equipment changes
   applyEquipment(equipmentState) {
+    this.equipmentState = equipmentState;
     const slotColors = {
       head: 0xaa3333,
       torso: 0x224466,
@@ -319,6 +331,94 @@ export class PlayerCharacter {
       }
     }
   }
+
+  applyHeightPreset(preset) {
+    this.heightPreset = preset;
+    const scale = preset === 'short' ? 0.9 : preset === 'tall' ? 1.1 : 1.0;
+    this.baseHeight = 1.6 * scale;
+    this.group.scale.set(1.0, scale, 1.0);
+  }
+
+  getPreviewState() {
+    const skinColor = this.torso.material.color.getStyle();
+    const equipment = this.equipmentState || {};
+    const toStyle = (item, fallback) => {
+      const color = item && item.color ? item.color : fallback;
+      if (typeof color === 'string') return color;
+      const hex = typeof color === 'number' ? color : fallback;
+      return `#${hex.toString(16).padStart(6, '0')}`;
+    };
+
+    return {
+      genderLabel: this.genderLabel || (this.isFemale ? 'Female' : 'Male'),
+      bodyLabel:
+        this.bodyPreset === 'stocky'
+          ? 'Stocky'
+          : this.bodyPreset === 'slim'
+          ? 'Slim'
+          : 'Average',
+      hairStyle: this.hairStyle,
+      heightScale: this.baseHeight / 1.6,
+      torsoColor: toStyle(equipment.torso, 0x224466),
+      legsColor: toStyle(equipment.legs, 0x113355),
+      feetColor: toStyle(equipment.feet, 0x111111),
+      headItem: !!equipment.head,
+      headColor: toStyle(equipment.head, 0xaa3333),
+      hairColor: `#${this._colorFromHairName(this.hairColorName).toString(16).padStart(6, '0')}`,
+      skinColor,
+    };
+  }
+
+  _colorFromHairName(colorName) {
+    if (colorName === 'brown') return 0x402018;
+    if (colorName === 'blonde') return 0xc0b060;
+    if (colorName === 'red') return 0x802020;
+    if (colorName === 'neon') return 0x30ffcc;
+    if (colorName === 'black') return 0x201010;
+    return 0x201010;
+  }
+
+  setDisplayName(name) {
+    if (!this.nameSprite) {
+      const sprite = this._createNameSprite(name || 'Player');
+      sprite.position.set(0, 3.2, 0);
+      this.group.add(sprite);
+      this.nameSprite = sprite;
+    } else {
+      this._updateNameSprite(this.nameSprite, name);
+    }
+  }
+
+  _createNameSprite(text) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: this._drawNameToTexture(canvas, text), transparent: true })
+    );
+    return sprite;
+  }
+
+  _updateNameSprite(sprite, text) {
+    const canvas = sprite.material.map.image;
+    sprite.material.map.dispose();
+    sprite.material.map = this._drawNameToTexture(canvas, text);
+    sprite.material.needsUpdate = true;
+  }
+
+  _drawNameToTexture(canvas, text) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '32px sans-serif';
+    ctx.fillStyle = '#b8e8ff';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 10);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
 }
 
 // Thin wrapper to collect customization options from UI and apply to player
@@ -330,6 +430,7 @@ export class CharacterCustomizer {
   applyOptions(opts) {
     if (!opts) return;
     this.player.setGender(opts.gender === 'female');
+    this.player.applyHeightPreset(opts.height || 'medium');
     this.player.applyBodyPreset(opts.bodyPreset);
     this.player.applyHeadPreset(opts.headPreset);
     this.player.applySkinTone(opts.skinTone);
