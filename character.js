@@ -1,30 +1,120 @@
 // character.js
 // -----------------------------------------------------------------------------
 // Player character model and movement.
-// - Character is built from simple box/cylinder primitives but clearly shows
-//   male/female silhouette.
-// - Clothing slots (head, torso, legs, feet, accessory) exist as extra meshes
-//   whose visibility/color is updated by the inventory.
-// - Movement: basic WASD + gravity + jump, plus yaw rotation from mouse.
-// - Camera: attached as a child of the character group for a simple
-//   third-person-ish view.
+// Rebuilt with a PS1/Dreamcast-inspired low-poly avatar similar to the
+// "CyberZone 2004" mockup: layered boxy meshes, pixelated canvas textures, and
+// simple limb animation. Clothing colors still respond to equipment slots and
+// customization options, but the silhouette and materials now have much more
+// personality.
 // -----------------------------------------------------------------------------
 
 import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
 
+// -----------------------------------------------------------------------------
+// Texture helpers (tiny canvas textures to keep a retro look)
+// -----------------------------------------------------------------------------
+const textureCache = new Map();
+
+function createTexture(key, drawFn) {
+  if (textureCache.has(key)) return textureCache.get(key);
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  drawFn(ctx);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  textureCache.set(key, tex);
+  return tex;
+}
+
+function buildFaceTexture(skinHex) {
+  return createTexture(`face_${skinHex}`, (ctx) => {
+    ctx.fillStyle = skinHex;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(25, 55, 25, 12);
+    ctx.fillRect(78, 55, 25, 12);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(27, 57, 21, 8);
+    ctx.fillRect(80, 57, 21, 8);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(35, 59, 8, 8);
+    ctx.fillRect(88, 59, 8, 8);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(25, 48, 25, 3);
+    ctx.fillRect(78, 48, 25, 3);
+    ctx.fillStyle = '#aa6666';
+    ctx.fillRect(59, 95, 10, 3);
+  });
+}
+
+function buildSkinTexture(colorHex) {
+  return createTexture(`skin_${colorHex}`, (ctx) => {
+    ctx.fillStyle = colorHex;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 400; i++) {
+      ctx.fillRect(Math.random() * 128, Math.random() * 128, 1, 1);
+    }
+  });
+}
+
+function buildJacketBackTexture(colorHex) {
+  return createTexture(`jacket_back_${colorHex}`, (ctx) => {
+    ctx.fillStyle = colorHex;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 500; i++) ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    ctx.strokeStyle = '#cc0000';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(64, 64, 35, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#cc0000';
+    ctx.beginPath();
+    ctx.moveTo(64, 40);
+    ctx.lineTo(45, 75);
+    ctx.lineTo(83, 75);
+    ctx.fill();
+  });
+}
+
+function buildDenimTexture(colorHex) {
+  return createTexture(`denim_${colorHex}`, (ctx) => {
+    ctx.fillStyle = colorHex;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 2000; i++) ctx.fillRect(Math.random() * 128, Math.random() * 128, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, 5, 128);
+    ctx.fillRect(123, 0, 5, 128);
+  });
+}
+
+// -----------------------------------------------------------------------------
+// PlayerCharacter
+// -----------------------------------------------------------------------------
 export class PlayerCharacter {
   constructor(scene, isFemale, startPos) {
     this.scene = scene;
     this.isFemale = isFemale;
-    this.heightPreset = 'medium';
-    this.bodyPreset = 'average';
-    this.headPreset = 'round';
-    this.skinTone = 'light';
-    this.hairStyle = 'long';
-    this.hairColorName = 'red';
-    this.baseHeight = 1.6;
+    this.params = {
+      gender: isFemale ? 'female' : 'male',
+      heightScale: 1.0,
+      bodyPreset: 'average',
+      headPreset: 'round',
+      skinTone: '#d8b59a',
+      hairStyle: 'long',
+      hairColor: '#aa0000',
+      jacketColor: '#111111',
+      shirtColor: '#990000',
+      pantsColor: '#223355',
+    };
+
     this.equipmentState = { head: null, torso: null, legs: null, feet: null, accessory: null };
-    this.genderLabel = isFemale ? 'Female' : 'Male';
+    this.genderLabel = this.params.gender === 'female' ? 'Female' : 'Male';
 
     this.group = new THREE.Group();
     this.position = startPos.clone();
@@ -34,153 +124,192 @@ export class PlayerCharacter {
     this.onGround = true;
     this.yaw = 0;
 
-    // Build base body primitives
+    this.limbs = {};
     this._buildBody();
-
     this.scene.add(this.group);
   }
 
+  // ---------------------------------------------------------------------------
+  // Model construction
+  // ---------------------------------------------------------------------------
   _buildBody() {
-    const bodyColor = 0xd8b59a;
-    const bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
+    if (this.meshGroup) {
+      this.group.remove(this.meshGroup);
+    }
 
-    // Torso
-    const torsoGeom = new THREE.BoxGeometry(0.9, 1.15, 0.4);
-    this.torso = new THREE.Mesh(torsoGeom, bodyMat);
-    this.torso.position.set(0, 1.6, 0);
-    this.group.add(this.torso);
+    const p = this.params;
+    const meshGroup = new THREE.Group();
+    this.meshGroup = meshGroup;
+    this.group.add(meshGroup);
 
-    // Head
-    const headGeom = new THREE.BoxGeometry(0.5, 0.6, 0.5);
-    this.head = new THREE.Mesh(headGeom, bodyMat);
-    this.head.position.set(0, 2.4, 0);
-    this.group.add(this.head);
+    const skinTex = buildSkinTexture(p.skinTone);
+    const faceTex = buildFaceTexture(p.skinTone);
+    const denimTex = buildDenimTexture(p.pantsColor);
+    const jacketBackTex = buildJacketBackTexture(p.jacketColor);
+
+    const matSkin = new THREE.MeshLambertMaterial({ map: skinTex });
+    const matFace = new THREE.MeshLambertMaterial({ map: faceTex });
+    const matJeans = new THREE.MeshLambertMaterial({ map: denimTex });
+    const matJacket = new THREE.MeshLambertMaterial({ color: p.jacketColor });
+    const matJacketBack = new THREE.MeshLambertMaterial({ map: jacketBackTex });
+    const matShirt = new THREE.MeshLambertMaterial({ color: p.shirtColor });
+    const matHair = new THREE.MeshLambertMaterial({ color: p.hairColor });
+    const matBoots = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const matHolster = new THREE.MeshLambertMaterial({ color: 0x050505 });
+
+    const s = p.heightScale;
+
+    // Hips
+    const hips = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.22, 0.26), matJeans);
+    hips.position.y = 0.9 * s;
+    meshGroup.add(hips);
+    this.limbs.hips = hips;
+
+    // Midriff
+    const midriff = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.2), matSkin);
+    midriff.position.y = 0.17;
+    hips.add(midriff);
+
+    // Chest
+    const chestGroup = new THREE.Group();
+    chestGroup.position.y = 0.12;
+    midriff.add(chestGroup);
+
+    const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.35, 0.22), matShirt);
+    shirt.position.y = 0.1;
+    chestGroup.add(shirt);
+
+    const jacketBack = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.05), matJacketBack);
+    jacketBack.position.set(0, 0.1, 0.12);
+    chestGroup.add(jacketBack);
+
+    const jacketL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.28), matJacket);
+    jacketL.position.set(0.19, 0.1, 0);
+    chestGroup.add(jacketL);
+    const jacketR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.28), matJacket);
+    jacketR.position.set(-0.19, 0.1, 0);
+    chestGroup.add(jacketR);
+
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.26), matJacket);
+    collar.position.set(0, 0.3, 0.05);
+    chestGroup.add(collar);
+
+    // Head (face on front)
+    const headMats = [matSkin, matSkin, matSkin, matSkin, matSkin, matFace];
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.24), headMats);
+    head.position.y = 0.45;
+    chestGroup.add(head);
+    this.headRef = head;
+
+    // Hair
+    this._addHairMeshes(head, matHair, p.hairStyle);
 
     // Legs
-    const legGeom = new THREE.BoxGeometry(0.34, 0.95, 0.34);
-    this.leftLeg = new THREE.Mesh(legGeom, bodyMat);
-    this.rightLeg = new THREE.Mesh(legGeom, bodyMat);
-    this.leftLeg.position.set(-0.2, 0.7, 0);
-    this.rightLeg.position.set(0.2, 0.7, 0);
-    this.group.add(this.leftLeg);
-    this.group.add(this.rightLeg);
+    const legGeo = new THREE.BoxGeometry(0.15, 0.85 * s, 0.17);
+    const lLeg = new THREE.Mesh(legGeo, matJeans);
+    lLeg.position.set(0.11, -0.45 * s, 0);
+    hips.add(lLeg);
+    this.limbs.leftLeg = lLeg;
 
-    // Simple shoulder/arm "impression" via slightly wider torso on male vs female
-    if (this.isFemale) {
-      this.torso.scale.set(0.9, 1.0, 0.9);
+    const holsterL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.25, 0.17), matHolster);
+    holsterL.position.set(0.06, 0.1, 0);
+    lLeg.add(holsterL);
+    const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.17), matHolster);
+    strapL.position.y = 0.1;
+    lLeg.add(strapL);
+
+    const rLeg = new THREE.Mesh(legGeo, matJeans);
+    rLeg.position.set(-0.11, -0.45 * s, 0);
+    hips.add(rLeg);
+    this.limbs.rightLeg = rLeg;
+
+    const holsterR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.25, 0.17), matHolster);
+    holsterR.position.set(-0.06, 0.1, 0);
+    rLeg.add(holsterR);
+    const strapR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.17), matHolster);
+    strapR.position.y = 0.1;
+    rLeg.add(strapR);
+
+    const bootGeo = new THREE.BoxGeometry(0.17, 0.25, 0.25);
+    const lBoot = new THREE.Mesh(bootGeo, matBoots);
+    lBoot.position.y = -0.35 * s;
+    lBoot.position.z = -0.04;
+    lLeg.add(lBoot);
+    const rBoot = new THREE.Mesh(bootGeo, matBoots);
+    rBoot.position.y = -0.35 * s;
+    rBoot.position.z = -0.04;
+    rLeg.add(rBoot);
+
+    // Arms
+    const armGeo = new THREE.BoxGeometry(0.11, 0.7 * s, 0.11);
+    const lArm = new THREE.Mesh(armGeo, matJacket);
+    lArm.position.set(0.25, 0.1, 0);
+    chestGroup.add(lArm);
+    this.limbs.leftArm = lArm;
+    const lGlove = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.12), matHolster);
+    lGlove.position.y = -0.3 * s;
+    lArm.add(lGlove);
+
+    const rArm = new THREE.Mesh(armGeo, matJacket);
+    rArm.position.set(-0.25, 0.1, 0);
+    chestGroup.add(rArm);
+    this.limbs.rightArm = rArm;
+    const rGlove = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.12), matHolster);
+    rGlove.position.y = -0.3 * s;
+    rArm.add(rGlove);
+
+    // Shadow
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.5, 8),
+      new THREE.MeshBasicMaterial({ color: 0x000000, opacity: 0.5, transparent: true })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = -0.9 * s + 0.02;
+    hips.add(shadow);
+
+    this.applyBodyPreset(this.params.bodyPreset);
+    this.applyHeadPreset(this.params.headPreset);
+    this.applyEquipment(this.equipmentState);
+  }
+
+  _addHairMeshes(head, matHair, hairStyle) {
+    const hairGroup = new THREE.Group();
+    if (hairStyle === 'short') {
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.26), matHair);
+      cap.position.y = 0.15;
+      hairGroup.add(cap);
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 4), matHair);
+      spike.position.y = 0.2;
+      hairGroup.add(spike);
+    } else if (hairStyle === 'ponytail') {
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.26), matHair);
+      cap.position.y = 0.15;
+      hairGroup.add(cap);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), matHair);
+      tail.position.set(0, -0.05, 0.18);
+      hairGroup.add(tail);
     } else {
-      this.torso.scale.set(1.1, 1.0, 0.9);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.45, 0.08), matHair);
+      back.position.set(0, -0.1, 0.13);
+      hairGroup.add(back);
+      const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.2), matHair);
+      sideL.position.set(0.14, -0.1, 0.02);
+      hairGroup.add(sideL);
+      const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.2), matHair);
+      sideR.position.set(-0.14, -0.1, 0.02);
+      hairGroup.add(sideR);
+      const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.05), matHair);
+      bangs.position.set(0, 0.08, -0.13);
+      hairGroup.add(bangs);
     }
-
-    // Hair (multiple styles as meshes, we'll toggle)
-    this.hairMeshes = {
-      short: this._createHairMesh(0x201010),
-      long: this._createHairMesh(0x702020, true),
-      ponytail: this._createHairPonytailMesh(0x702020),
-    };
-    for (const m of Object.values(this.hairMeshes)) {
-      m.visible = false;
-      this.group.add(m);
-    }
-    this.currentHairStyle = 'long';
-    this.hairMeshes.long.visible = true;
-
-    // Clothing overlay meshes per slot
-    this.slotMeshes = {
-      head: this._createHeadAccessory(),
-      torso: this._createTorsoClothing(),
-      legs: this._createLegClothing(),
-      feet: this._createFeetClothing(),
-      accessory: this._createBackpack(),
-    };
-    for (const m of Object.values(this.slotMeshes)) {
-      m.visible = false;
-      this.group.add(m);
-    }
-
-    // Default body preset
-    this.applyBodyPreset('slim');
-    this.applySkinTone(this.skinTone);
-    this.applyHairStyle(this.hairStyle);
-    this.applyHairColor(this.hairColorName);
+    hairGroup.position.y = 0.45;
+    head.add(hairGroup);
   }
 
-  _createHairMesh(color, long = false) {
-    const geom = long
-      ? new THREE.BoxGeometry(0.72, 1.0, 0.62)
-      : new THREE.BoxGeometry(0.7, 0.4, 0.6);
-    const mat = new THREE.MeshLambertMaterial({ color });
-    const hair = new THREE.Mesh(geom, mat);
-    hair.position.set(0, long ? 2.2 : 2.4, -0.02);
-    return hair;
-  }
-
-  _createHairPonytailMesh(color) {
-    const group = new THREE.Group();
-    const topGeom = new THREE.BoxGeometry(0.7, 0.4, 0.6);
-    const mat = new THREE.MeshLambertMaterial({ color });
-    const top = new THREE.Mesh(topGeom, mat);
-    top.position.set(0, 2.4, 0);
-    group.add(top);
-
-    const tailGeom = new THREE.BoxGeometry(0.25, 0.8, 0.25);
-    const tail = new THREE.Mesh(tailGeom, mat);
-    tail.position.set(0, 2.0, -0.2);
-    group.add(tail);
-
-    return group;
-  }
-
-  _createHeadAccessory() {
-    const geom = new THREE.BoxGeometry(0.8, 0.3, 0.8);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x333388 });
-    const hat = new THREE.Mesh(geom, mat);
-    hat.position.set(0, 2.7, 0);
-    return hat;
-  }
-
-  _createTorsoClothing() {
-    const geom = new THREE.BoxGeometry(1.05, 1.05, 0.58);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x1a1a1d });
-    const jacket = new THREE.Mesh(geom, mat);
-    jacket.position.set(0, 1.58, 0);
-
-    // Accent shirt peeking through the jacket front
-    const accentGeom = new THREE.BoxGeometry(0.55, 0.7, 0.2);
-    const accentMat = new THREE.MeshLambertMaterial({ color: 0x6d1e1e });
-    const accent = new THREE.Mesh(accentGeom, accentMat);
-    accent.position.set(0, -0.02, -0.3);
-    jacket.add(accent);
-
-    return jacket;
-  }
-
-  _createLegClothing() {
-    const geom = new THREE.BoxGeometry(0.82, 1.0, 0.58);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x2f4b70 });
-    const pants = new THREE.Mesh(geom, mat);
-    pants.position.set(0, 0.7, 0);
-    return pants;
-  }
-
-  _createFeetClothing() {
-    const geom = new THREE.BoxGeometry(0.9, 0.32, 0.9);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x0e0e0f });
-    const boots = new THREE.Mesh(geom, mat);
-    boots.position.set(0, 0.25, 0);
-    return boots;
-  }
-
-  _createBackpack() {
-    const geom = new THREE.BoxGeometry(0.7, 0.9, 0.3);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x224422 });
-    const pack = new THREE.Mesh(geom, mat);
-    pack.position.set(0, 1.6, -0.45);
-    return pack;
-  }
-
+  // ---------------------------------------------------------------------------
+  // Rendering helpers
+  // ---------------------------------------------------------------------------
   attachCamera(camera) {
-    // Store reference for orbit-style updates handled externally
     this.camera = camera;
   }
 
@@ -189,14 +318,8 @@ export class PlayerCharacter {
     const target = new THREE.Vector3(this.position.x, this.position.y + 1.5, this.position.z);
     const offset = new THREE.Vector3();
     const { yaw, pitch, distance } = orbit;
-
     const cosPitch = Math.cos(pitch);
-    offset.set(
-      Math.sin(yaw) * cosPitch * distance,
-      Math.sin(pitch) * distance,
-      Math.cos(yaw) * cosPitch * distance
-    );
-
+    offset.set(Math.sin(yaw) * cosPitch * distance, Math.sin(pitch) * distance, Math.cos(yaw) * cosPitch * distance);
     camera.position.copy(target).add(offset);
     camera.lookAt(target);
   }
@@ -206,8 +329,10 @@ export class PlayerCharacter {
     this.group.rotation.y = this.yaw;
   }
 
+  // ---------------------------------------------------------------------------
+  // Movement & animation
+  // ---------------------------------------------------------------------------
   update(dt, input, collisionFn) {
-    // Movement in local XZ plane aligned to camera yaw
     const speed = 6.0;
     let strafe = 0;
     let forward = 0;
@@ -236,7 +361,6 @@ export class PlayerCharacter {
       this.yaw = Math.atan2(moveDir.x, moveDir.z);
     }
 
-    // Gravity & jump
     const gravity = -18.0;
     const jumpSpeed = 9.0;
 
@@ -248,126 +372,121 @@ export class PlayerCharacter {
     this.velocityY += gravity * dt;
     this.position.y += this.velocityY * dt;
 
-    if (this.position.y <= this.baseHeight) {
-      this.position.y = this.baseHeight;
+    const baseHeight = 1.6 * this.params.heightScale;
+    if (this.position.y <= baseHeight) {
+      this.position.y = baseHeight;
       this.velocityY = 0;
       this.onGround = true;
     }
 
-    // Collision resolution (world or interior)
     collisionFn(this.position, 0.6);
-
-    // Apply transform
     this.syncTransform();
 
-    // Simple walk animation: swing legs if moving
     const moving = len > 0.01;
     const t = performance.now() / 200;
     const swing = moving ? Math.sin(t) * 0.3 : 0;
-    this.leftLeg.rotation.x = swing;
-    this.rightLeg.rotation.x = -swing;
+    if (this.limbs.leftLeg && this.limbs.rightLeg) {
+      this.limbs.leftLeg.rotation.x = swing;
+      this.limbs.rightLeg.rotation.x = -swing;
+    }
+    if (this.limbs.leftArm && this.limbs.rightArm) {
+      this.limbs.leftArm.rotation.x = -swing;
+      this.limbs.rightArm.rotation.x = swing;
+    }
   }
 
-  // VISUAL CUSTOMIZATION ------------------------------------------------------
-
+  // ---------------------------------------------------------------------------
+  // Customization hooks
+  // ---------------------------------------------------------------------------
   setGender(isFemale) {
     this.isFemale = isFemale;
-    this.torso.scale.x = isFemale ? 0.9 : 1.1;
+    this.params.gender = isFemale ? 'female' : 'male';
     this.genderLabel = isFemale ? 'Female' : 'Male';
+    this._buildBody();
   }
 
   applyBodyPreset(preset) {
-    this.bodyPreset = preset;
+    this.params.bodyPreset = preset;
+    if (!this.limbs.hips) return;
     if (preset === 'slim') {
-      this.torso.scale.set(0.85, 1.05, 0.9);
-      this.leftLeg.scale.set(0.8, 1.0, 1.0);
-      this.rightLeg.scale.set(0.8, 1.0, 1.0);
+      this.limbs.hips.scale.set(0.9, 1.0, 1.0);
     } else if (preset === 'stocky') {
-      this.torso.scale.set(1.25, 1.1, 1.0);
-      this.leftLeg.scale.set(1.1, 1.0, 1.0);
-      this.rightLeg.scale.set(1.1, 1.0, 1.0);
+      this.limbs.hips.scale.set(1.15, 1.0, 1.05);
     } else {
-      this.torso.scale.set(1.0, 1.0, 1.0);
-      this.leftLeg.scale.set(1.0, 1.0, 1.0);
-      this.rightLeg.scale.set(1.0, 1.0, 1.0);
+      this.limbs.hips.scale.set(1.0, 1.0, 1.0);
     }
   }
 
   applyHeadPreset(preset) {
-    this.headPreset = preset;
+    this.params.headPreset = preset;
+    if (!this.meshGroup) return;
+    const head = this.headRef;
+    if (!head) return;
     if (preset === 'sharp') {
-      this.head.scale.set(0.7, 0.7, 0.5);
+      head.scale.set(0.7, 0.7, 0.5);
     } else if (preset === 'angular') {
-      this.head.scale.set(0.5, 0.7, 0.7);
+      head.scale.set(0.5, 0.7, 0.7);
     } else {
-      this.head.scale.set(0.6, 0.6, 0.6);
+      head.scale.set(1.0, 1.0, 1.0);
     }
   }
 
   applySkinTone(tone) {
-    this.skinTone = tone;
-    let color = 0xd0b090;
-    if (tone === 'pale') color = 0xf0d0c0;
-    else if (tone === 'tan') color = 0xc09060;
-    else if (tone === 'dark') color = 0x804830;
-    this.torso.material.color.setHex(color);
-    this.head.material.color.setHex(color);
-    this.leftLeg.material.color.setHex(color);
-    this.rightLeg.material.color.setHex(color);
+    this.params.skinTone = this._skinHexFromTone(tone);
+    this._buildBody();
   }
 
   applyHairStyle(style) {
-    this.hairStyle = style;
-    this.currentHairStyle = style;
-    for (const [k, mesh] of Object.entries(this.hairMeshes)) {
-      mesh.visible = k === style;
-    }
+    this.params.hairStyle = style;
+    this._buildBody();
   }
 
   applyHairColor(colorName) {
-    this.hairColorName = colorName;
-    const color = this._colorFromHairName(colorName);
-    for (const mesh of Object.values(this.hairMeshes)) {
-      if (mesh.material) {
-        mesh.material.color.setHex(color);
-      } else {
-        // group hair (ponytail) contains children
-        mesh.traverse((child) => {
-          if (child.isMesh) child.material.color.setHex(color);
-        });
-      }
-    }
+    this.params.hairColor = `#${this._colorFromHairName(colorName).toString(16).padStart(6, '0')}`;
+    this._buildBody();
   }
 
-  // Called by inventory when equipment changes
   applyEquipment(equipmentState) {
-    this.equipmentState = equipmentState;
+    this.equipmentState = equipmentState || this.equipmentState;
     const slotColors = {
       head: 0xaa3333,
       torso: 0x224466,
-      legs: 0x113355,
+      legs: 0x223355,
       feet: 0x111111,
       accessory: 0x336633,
     };
-    for (const [slot, mesh] of Object.entries(this.slotMeshes)) {
-      const item = equipmentState[slot];
-      mesh.visible = !!item;
-      if (item && mesh.material) {
-        const color = item.color || slotColors[slot];
-        mesh.material.color.setHex(color);
-      }
+    const getColor = (slot) => {
+      const item = this.equipmentState[slot];
+      if (!item) return null;
+      return typeof item.color === 'number' ? item.color : slotColors[slot];
+    };
+
+    const torsoColor = getColor('torso');
+    const legColor = getColor('legs');
+    const feetColor = getColor('feet');
+    if (torsoColor) this.params.jacketColor = `#${torsoColor.toString(16).padStart(6, '0')}`;
+    if (legColor) this.params.pantsColor = `#${legColor.toString(16).padStart(6, '0')}`;
+    if (feetColor && this.meshGroup) {
+      this.meshGroup.traverse((child) => {
+        if (child.isMesh && child.material && child.material.color && child.geometry.type === 'BoxGeometry') {
+          if (child.parent === this.limbs.leftLeg || child.parent === this.limbs.rightLeg) {
+            child.material.color.setHex(feetColor);
+          }
+        }
+      });
+    }
+    if (torsoColor || legColor) {
+      this._buildBody();
     }
   }
 
   applyHeightPreset(preset) {
-    this.heightPreset = preset;
-    const scale = preset === 'short' ? 0.9 : preset === 'tall' ? 1.1 : 1.0;
-    this.baseHeight = 1.6 * scale;
-    this.group.scale.set(1.0, scale, 1.0);
+    this.params.heightScale = preset === 'short' ? 0.9 : preset === 'tall' ? 1.1 : 1.0;
+    this.group.scale.set(1.0, this.params.heightScale, 1.0);
+    this._buildBody();
   }
 
   getPreviewState() {
-    const skinColor = this.torso.material.color.getStyle();
     const equipment = this.equipmentState || {};
     const toStyle = (item, fallback) => {
       const color = item && item.color ? item.color : fallback;
@@ -379,30 +498,21 @@ export class PlayerCharacter {
     return {
       genderLabel: this.genderLabel || (this.isFemale ? 'Female' : 'Male'),
       bodyLabel:
-        this.bodyPreset === 'stocky'
+        this.params.bodyPreset === 'stocky'
           ? 'Stocky'
-          : this.bodyPreset === 'slim'
+          : this.params.bodyPreset === 'slim'
           ? 'Slim'
           : 'Average',
-      hairStyle: this.hairStyle,
-      heightScale: this.baseHeight / 1.6,
+      hairStyle: this.params.hairStyle,
+      heightScale: this.params.heightScale,
       torsoColor: toStyle(equipment.torso, 0x224466),
       legsColor: toStyle(equipment.legs, 0x113355),
       feetColor: toStyle(equipment.feet, 0x111111),
       headItem: !!equipment.head,
       headColor: toStyle(equipment.head, 0xaa3333),
-      hairColor: `#${this._colorFromHairName(this.hairColorName).toString(16).padStart(6, '0')}`,
-      skinColor,
+      hairColor: this.params.hairColor,
+      skinColor: this.params.skinTone,
     };
-  }
-
-  _colorFromHairName(colorName) {
-    if (colorName === 'brown') return 0x402018;
-    if (colorName === 'blonde') return 0xc0b060;
-    if (colorName === 'red') return 0x802020;
-    if (colorName === 'neon') return 0x30ffcc;
-    if (colorName === 'black') return 0x201010;
-    return 0x201010;
   }
 
   setDisplayName(name) {
@@ -445,6 +555,22 @@ export class PlayerCharacter {
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     return texture;
+  }
+
+  _colorFromHairName(colorName) {
+    if (colorName === 'brown') return 0x402018;
+    if (colorName === 'blonde') return 0xc0b060;
+    if (colorName === 'red') return 0x802020;
+    if (colorName === 'neon') return 0x30ffcc;
+    if (colorName === 'black') return 0x201010;
+    return 0x201010;
+  }
+
+  _skinHexFromTone(tone) {
+    if (tone === 'pale') return '#f0d0c0';
+    if (tone === 'tan') return '#c09060';
+    if (tone === 'dark') return '#804830';
+    return '#d0b090';
   }
 }
 
