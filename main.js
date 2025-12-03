@@ -64,13 +64,14 @@ const interiorDir = new THREE.DirectionalLight(0xffffff, 0.6);
 interiorDir.position.set(-2, 5, -1);
 interiorScene.add(interiorDir);
 
-// Camera & pointer-lock style controls (3rd-person chase camera)
+// Camera & pointer-lock style controls (orbit-style chase camera)
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 );
+const cameraOrbit = { yaw: Math.PI, pitch: 0.25, distance: 9.0 };
 
 // Game-wide random naming helper
 const nameGen = new NameGenerator(1337);
@@ -138,6 +139,12 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') {
     handleInteraction();
   }
+  if (e.key === '+' || (e.code === 'Equal' && e.shiftKey)) {
+    UI.adjustClockHours(1);
+  }
+  if (e.key === '-' || e.code === 'Minus') {
+    UI.adjustClockHours(-1);
+  }
 });
 
 document.addEventListener('keyup', (e) => {
@@ -145,7 +152,6 @@ document.addEventListener('keyup', (e) => {
 });
 
 // Pointer lock & mouse look
-let yaw = 0;
 let mouseLocked = false;
 
 canvas.addEventListener('click', () => {
@@ -160,7 +166,8 @@ document.addEventListener('pointerlockchange', () => {
 document.addEventListener('mousemove', (e) => {
   if (!mouseLocked) return;
   const sensitivity = 0.0025;
-  yaw -= e.movementX * sensitivity;
+  cameraOrbit.yaw -= e.movementX * sensitivity;
+  cameraOrbit.pitch = Math.min(Math.max(cameraOrbit.pitch - e.movementY * sensitivity, -0.4), 0.9);
 });
 
 // WINDOW RESIZE ---------------------------------------------------------------
@@ -233,7 +240,7 @@ function gameLoop(now) {
       left: keys.KeyA,
       right: keys.KeyD,
       jump: wantJump,
-      yaw: yaw,
+      camYaw: cameraOrbit.yaw,
     };
     wantJump = false; // consumed this frame
 
@@ -243,6 +250,7 @@ function gameLoop(now) {
       : (pos, radius) => worldManager.handleCollisions(pos, radius);
 
     player.update(clampedDt, input, collisionFn);
+    player.updateCamera(camera, cameraOrbit);
 
     // Update world or interiors
     if (!state.inInterior) {

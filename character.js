@@ -180,10 +180,25 @@ export class PlayerCharacter {
   }
 
   attachCamera(camera) {
-    // Attach camera as child for a simple chase-cam
-    this.group.add(camera);
-    camera.position.set(0, 1.9, 4.0);
-    camera.lookAt(new THREE.Vector3(0, 1.6, 0));
+    // Store reference for orbit-style updates handled externally
+    this.camera = camera;
+  }
+
+  updateCamera(camera, orbit) {
+    if (!camera) return;
+    const target = new THREE.Vector3(this.position.x, this.position.y + 1.5, this.position.z);
+    const offset = new THREE.Vector3();
+    const { yaw, pitch, distance } = orbit;
+
+    const cosPitch = Math.cos(pitch);
+    offset.set(
+      Math.sin(yaw) * cosPitch * distance,
+      Math.sin(pitch) * distance,
+      Math.cos(yaw) * cosPitch * distance
+    );
+
+    camera.position.copy(target).add(offset);
+    camera.lookAt(target);
   }
 
   syncTransform() {
@@ -192,33 +207,34 @@ export class PlayerCharacter {
   }
 
   update(dt, input, collisionFn) {
-    // Update yaw
-    this.yaw = input.yaw;
-
-    // Movement in local XZ plane
+    // Movement in local XZ plane aligned to camera yaw
     const speed = 6.0;
-    let moveX = 0;
-    let moveZ = 0;
+    let strafe = 0;
+    let forward = 0;
 
-    if (input.forward) moveZ -= 1;
-    if (input.backward) moveZ += 1;
-    if (input.left) moveX -= 1;
-    if (input.right) moveX += 1;
+    if (input.forward) forward += 1;
+    if (input.backward) forward -= 1;
+    if (input.left) strafe -= 1;
+    if (input.right) strafe += 1;
 
-    const len = Math.hypot(moveX, moveZ);
+    const len = Math.hypot(strafe, forward);
     if (len > 0) {
-      moveX /= len;
-      moveZ /= len;
+      strafe /= len;
+      forward /= len;
     }
 
-    // Apply yaw rotation to movement vector
-    const sin = Math.sin(this.yaw);
-    const cos = Math.cos(this.yaw);
-    const dx = (moveX * cos - moveZ * sin) * speed * dt;
-    const dz = (moveX * sin + moveZ * cos) * speed * dt;
+    const camYaw = input.camYaw ?? 0;
+    const forwardDir = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+    const rightDir = new THREE.Vector3(Math.sin(camYaw + Math.PI / 2), 0, Math.cos(camYaw + Math.PI / 2));
+    const moveDir = new THREE.Vector3();
+    moveDir.addScaledVector(forwardDir, forward);
+    moveDir.addScaledVector(rightDir, strafe);
 
-    this.position.x += dx;
-    this.position.z += dz;
+    if (moveDir.lengthSq() > 0) {
+      moveDir.normalize();
+      this.position.addScaledVector(moveDir, speed * dt);
+      this.yaw = Math.atan2(moveDir.x, moveDir.z);
+    }
 
     // Gravity & jump
     const gravity = -18.0;
