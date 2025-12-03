@@ -93,6 +93,8 @@ const npcManager = new NpcManager(worldScene, nameGen, warManager);
 const startingPos = new THREE.Vector3(0, 1.6, 0);
 const player = new PlayerCharacter(worldScene, /*isFemale*/ false, startingPos);
 player.attachCamera(camera);
+const username = prompt('Enter your username', 'Guest');
+player.setDisplayName(username || 'Guest');
 
 // Character customization helper
 const characterCustomizer = new CharacterCustomizer(player);
@@ -175,6 +177,7 @@ UI.init({
   inventory,
   characterCustomizer,
   warManager,
+  player,
   onEquipItem: (itemId) => {
     inventory.equip(itemId);
     UI.refreshInventoryView(inventory);

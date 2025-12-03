@@ -17,6 +17,7 @@ export const UI = {
     this.inventory = config.inventory;
     this.characterCustomizer = config.characterCustomizer;
     this.warManager = config.warManager;
+    this.player = config.player;
     this.onEquipItem = config.onEquipItem;
     this.onUnequipSlot = config.onUnequipSlot;
     this.onChatSubmit = config.onChatSubmit;
@@ -44,15 +45,19 @@ export const UI = {
 
     // Customization controls
     const genderSelect = document.getElementById('genderSelect');
+    const heightSelect = document.getElementById('heightSelect');
     const bodyPresetSelect = document.getElementById('bodyPresetSelect');
     const headPresetSelect = document.getElementById('headPresetSelect');
     const skinToneSelect = document.getElementById('skinToneSelect');
     const hairStyleSelect = document.getElementById('hairStyleSelect');
     const hairColorSelect = document.getElementById('hairColorSelect');
+    this.previewCanvas = document.getElementById('characterPreview');
+    this.previewCtx = this.previewCanvas ? this.previewCanvas.getContext('2d') : null;
 
     const applyCustomization = () => {
       const opts = {
         gender: genderSelect.value,
+        height: heightSelect.value,
         bodyPreset: bodyPresetSelect.value,
         headPreset: headPresetSelect.value,
         skinTone: skinToneSelect.value,
@@ -65,11 +70,13 @@ export const UI = {
       if (this.onCustomizationChanged) {
         this.onCustomizationChanged(opts);
       }
+      this._drawPreview();
     };
 
     this.onCustomizationChanged = config.onCustomizationChanged;
     [
       genderSelect,
+      heightSelect,
       bodyPresetSelect,
       headPresetSelect,
       skinToneSelect,
@@ -88,6 +95,9 @@ export const UI = {
 
     // Initial war status
     this.updateWarStatus(this.warManager);
+
+    // First render of preview after options wired
+    this._drawPreview();
   },
 
   // INVENTORY -----------------------------------------------------------------
@@ -135,6 +145,8 @@ export const UI = {
       }
       this.equipmentSlotsRoot.appendChild(div);
     }
+
+    this._drawPreview();
   },
 
   // CUSTOMIZATION -------------------------------------------------------------
@@ -214,5 +226,68 @@ export const UI = {
     setTimeout(() => {
       if (div.parentElement) div.parentElement.removeChild(div);
     }, 7000);
+  },
+
+  // CHARACTER PREVIEW ---------------------------------------------------------
+  _drawPreview() {
+    if (!this.previewCtx || !this.player) return;
+    const ctx = this.previewCtx;
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Subtle backdrop
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#1a1a24');
+    grad.addColorStop(1, '#050509');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    const state = this.player.getPreviewState();
+    const centerX = w / 2;
+    const baseHeight = 120 * state.heightScale;
+    const baseY = h - 10;
+
+    // Legs
+    ctx.fillStyle = state.legsColor;
+    ctx.fillRect(centerX - 18, baseY - baseHeight * 0.5, 16, baseHeight * 0.5);
+    ctx.fillRect(centerX + 2, baseY - baseHeight * 0.5, 16, baseHeight * 0.5);
+
+    // Torso
+    ctx.fillStyle = state.torsoColor;
+    ctx.fillRect(centerX - 22, baseY - baseHeight * 0.9, 44, baseHeight * 0.45);
+
+    // Arms
+    ctx.fillStyle = state.skinColor;
+    ctx.fillRect(centerX - 34, baseY - baseHeight * 0.82, 12, baseHeight * 0.35);
+    ctx.fillRect(centerX + 22, baseY - baseHeight * 0.82, 12, baseHeight * 0.35);
+
+    // Head
+    ctx.fillStyle = state.skinColor;
+    ctx.fillRect(centerX - 16, baseY - baseHeight * 1.08, 32, baseHeight * 0.2);
+
+    // Hair
+    ctx.fillStyle = state.hairColor;
+    ctx.fillRect(centerX - 18, baseY - baseHeight * 1.10, 36, baseHeight * 0.08);
+    if (state.hairStyle === 'ponytail' || state.hairStyle === 'long') {
+      ctx.fillRect(centerX - 6, baseY - baseHeight * 0.96, 12, baseHeight * 0.16);
+    }
+
+    // Accessory highlight
+    if (state.headItem) {
+      ctx.strokeStyle = state.headColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(centerX - 16, baseY - baseHeight * 1.11, 32, baseHeight * 0.22);
+    }
+
+    // Feet outline
+    ctx.fillStyle = state.feetColor;
+    ctx.fillRect(centerX - 18, baseY - baseHeight * 0.05, 36, baseHeight * 0.06);
+
+    // Tiny label
+    ctx.fillStyle = '#9ac8ff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${state.genderLabel} | ${state.bodyLabel}`, centerX, 12);
   },
 };

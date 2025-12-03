@@ -33,6 +33,7 @@ export class NpcManager {
   }
 
   _createNpc(x, z) {
+    const ghostHandles = ['xXDarkAngelXx', 'CyberRogue', 'DreamcastKid', 'HL2Fan', 'PixelHeart', 'NeonSkater'];
     const bodyGeom = new THREE.BoxGeometry(0.4, 1.4, 0.4);
     const bodyMat = new THREE.MeshLambertMaterial({
       color: 0x888888 + (this.random.int(0, 0x222222)),
@@ -47,7 +48,7 @@ export class NpcManager {
       vx: 0,
       vz: 0,
       wanderTimer: this.random.range(2, 6),
-      name: `Citizen-${this.random.int(100, 999)}`,
+      name: ghostHandles[this.random.int(0, ghostHandles.length - 1)],
     };
   }
 

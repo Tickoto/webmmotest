@@ -24,10 +24,14 @@ export class InventorySystem {
     this.items.push(
       { id: 'hat_red', name: 'Red Beanie', slot: 'head', color: 0xaa3333 },
       { id: 'hat_blue', name: 'Blue Cap', slot: 'head', color: 0x3333aa },
+      { id: 'visor_neon', name: 'Neon Visor', slot: 'head', color: 0x33ffaa },
       { id: 'jacket_green', name: 'Green Jacket', slot: 'torso', color: 0x228822 },
       { id: 'jacket_black', name: 'Black Jacket', slot: 'torso', color: 0x111111 },
+      { id: 'jacket_white', name: 'White Hoodie', slot: 'torso', color: 0xdddddd },
       { id: 'pants_jeans', name: 'Worn Jeans', slot: 'legs', color: 0x223366 },
+      { id: 'pants_camo', name: 'Camo Pants', slot: 'legs', color: 0x556644 },
       { id: 'boots_combat', name: 'Combat Boots', slot: 'feet', color: 0x222222 },
+      { id: 'sneakers', name: 'Urban Sneakers', slot: 'feet', color: 0x778899 },
       { id: 'backpack_city', name: 'City Backpack', slot: 'accessory', color: 0x444488 }
     );
   }
