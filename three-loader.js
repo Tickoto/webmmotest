@@ -32,6 +32,17 @@ const CDN_SOURCES = [
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.165.0/three.module.js',
 ];
 
+// Some browsers/environments report a RangeError ("Maximum call stack size
+// exceeded") when a cross-origin module import fails and the loader keeps
+// retrying fallbacks. As a last resort, try the classic UMD bundle over CDN so
+// we at least get a working global THREE instead of blowing the stack during
+// startup.
+const CDN_SCRIPT_SOURCES = [
+  'https://unpkg.com/three@0.165.0/build/three.min.js',
+  'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.165.0/three.min.js',
+];
+
 async function tryLocalModule(paths, errors) {
   for (const path of paths) {
     try {
@@ -97,6 +108,12 @@ export async function loadThree() {
           console.warn(`Failed to load three.js from ${url}`, err);
         }
       }
+
+      // 4) If module imports failed (for example due to CORS/mixed-content
+      // issues), try the UMD CDN build via <script> to avoid RangeError loops
+      // that leave the page unusable.
+      const cdnScript = await tryLocalScript(CDN_SCRIPT_SOURCES, errors);
+      if (cdnScript) return cdnScript;
 
       const error = new Error(
         'Failed to load three.js from local copies or any CDN source. Ensure a three.module.js exists in ./lib or that you have network access.'
