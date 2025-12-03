@@ -34,6 +34,9 @@ export const UI = {
     this.dialogBox = document.getElementById('dialogBox');
     this.dialogText = document.getElementById('dialogText');
     this.notificationLog = document.getElementById('notificationLog');
+    this.clockDisplay = document.getElementById('clockDisplay');
+    this.healthFill = document.getElementById('healthFill');
+    this.healthLabel = document.getElementById('healthLabel');
 
     // Inventory toggle buttons
     document
@@ -95,6 +98,10 @@ export const UI = {
 
     // Initial war status
     this.updateWarStatus(this.warManager);
+
+    // Initialize HUD elements
+    this._startClock();
+    this.setHealth(0.82);
 
     // First render of preview after options wired
     this._drawPreview();
@@ -162,6 +169,29 @@ export const UI = {
   updateWarStatus(warManager) {
     if (!this.warStatusLabel || !warManager) return;
     this.warStatusLabel.textContent = `War status: ${warManager.getStatusSummary()}`;
+  },
+
+  _startClock() {
+    if (!this.clockDisplay) return;
+    const update = () => {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const label = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      this.clockDisplay.textContent = label;
+    };
+    update();
+    setInterval(update, 1000);
+  },
+
+  setHealth(amount) {
+    const pct = Math.max(0, Math.min(1, amount));
+    if (this.healthFill) {
+      this.healthFill.style.width = `${pct * 100}%`;
+    }
+    if (this.healthLabel) {
+      const percentLabel = Math.round(pct * 100);
+      this.healthLabel.textContent = `Vital Signs ${percentLabel}%`;
+    }
   },
 
   // DIALOG --------------------------------------------------------------------

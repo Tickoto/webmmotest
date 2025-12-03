@@ -5,274 +5,436 @@
   <meta charset="UTF-8" />
   <title>War Cities Prototype</title>
   <style>
+    :root {
+      --glass: rgba(10, 12, 20, 0.78);
+      --border: rgba(120, 133, 166, 0.35);
+      --accent: #6cf1ff;
+      --accent-2: #f44573;
+      --text: #e3e8f5;
+      --muted: #9aa4c3;
+    }
+
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #050509;
-      color: #ddd;
-      font-family: sans-serif;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #111828, #05070b 45%, #050509);
+      color: var(--text);
     }
+
     #gameCanvas {
       position: absolute;
-      top: 0; left: 0;
+      inset: 0;
       width: 100vw;
       height: 100vh;
       display: block;
-      background: #000;
+      background: #020305;
     }
+
     #uiRoot {
       position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none; /* let clicks pass through unless overridden */
+      inset: 0;
+      pointer-events: none;
       font-size: 13px;
+      color: var(--text);
     }
-    #topLeftInfo {
+
+    /* GLOBAL DECOR */
+    #vignette {
       position: absolute;
-      top: 8px;
-      left: 8px;
-      background: rgba(0,0,0,0.6);
-      padding: 6px 8px;
-      border-radius: 4px;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 30%, transparent 0, transparent 30%, rgba(0,0,0,0.55) 75%);
+      mix-blend-mode: multiply;
+    }
+
+    /* HUD STACK (top-right) */
+    #hudStack {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      display: grid;
+      gap: 10px;
+      justify-items: end;
       pointer-events: none;
     }
-    #areaLabel {
-      font-weight: bold;
-      font-size: 14px;
+
+    #clockDisplay {
+      font-family: "Share Tech Mono", monospace;
+      font-size: 20px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(108, 241, 255, 0.6);
     }
-    #warStatus {
+
+    #hudCard {
+      width: 300px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+    }
+
+    #hudHeader {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    #hudHeader::before {
+      content: "HUD";
+      color: var(--accent);
       font-size: 11px;
-      opacity: 0.8;
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: rgba(108, 241, 255, 0.07);
+      letter-spacing: 1px;
     }
+
+    #areaLabel {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-top: 4px;
+    }
+
+    #warStatus {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    #healthBar {
+      margin-top: 10px;
+      height: 22px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(30,35,50,0.9), rgba(35,39,55,0.9));
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+
+    #healthFill {
+      position: absolute;
+      inset: 0;
+      width: 82%;
+      background: linear-gradient(90deg, #6cf1ff, #1ea1ff);
+      box-shadow: 0 0 12px rgba(108, 241, 255, 0.7);
+      transition: width 0.3s ease;
+    }
+
+    #healthLabel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    }
+
+    /* CONTROL TIPS */
     #bottomLeftHints {
       position: absolute;
-      left: 8px;
-      bottom: 8px;
-      background: rgba(0,0,0,0.6);
-      padding: 6px 8px;
-      border-radius: 4px;
+      left: 18px;
+      bottom: 18px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
       pointer-events: none;
+      color: var(--muted);
+      line-height: 1.4;
+      max-width: 260px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
-    #bottomLeftHints span {
-      display: block;
-      opacity: 0.9;
+
+    #bottomLeftHints strong {
+      color: var(--text);
+      letter-spacing: 0.4px;
     }
-    #topRightButtons {
+
+    /* ACTION BUTTONS */
+    #topLeftButtons {
       position: absolute;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      top: 18px;
+      left: 18px;
+      display: grid;
+      gap: 8px;
       pointer-events: auto;
     }
-    #topRightButtons button {
-      background: rgba(0,0,0,0.8);
-      color: #ddd;
-      border: 1px solid #555;
-      padding: 4px 8px;
-      border-radius: 4px;
+
+    .pillButton {
+      background: var(--glass);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 12px;
+      letter-spacing: 0.6px;
       cursor: pointer;
-      font-size: 11px;
+      text-transform: uppercase;
+      transition: all 0.12s ease;
     }
-    #topRightButtons button:hover {
-      background: rgba(40,40,40,0.9);
+
+    .pillButton:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(108, 241, 255, 0.2);
     }
+
+    /* PANELS */
     .panel {
       position: absolute;
-      top: 50px;
+      top: 72px;
       left: 50%;
       transform: translateX(-50%);
-      width: 380px;
-      max-height: 60%;
-      background: rgba(5,5,10,0.95);
-      border: 1px solid #444;
-      border-radius: 6px;
-      padding: 8px;
+      width: 420px;
+      max-height: 65%;
+      background: rgba(6, 8, 14, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
       overflow: auto;
       pointer-events: auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.8);
+      box-shadow: 0 18px 36px rgba(0,0,0,0.45);
     }
+
     .panel h2 {
-      margin-top: 0;
-      font-size: 15px;
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      letter-spacing: 0.6px;
     }
-    .hidden {
-      display: none;
-    }
+
+    .hidden { display: none; }
+
     #inventoryItems {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
+      gap: 6px;
     }
+
     .inventory-item {
-      border: 1px solid #555;
-      padding: 4px;
-      border-radius: 4px;
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 8px;
       cursor: pointer;
-      background: rgba(20,20,30,0.9);
+      background: rgba(20,24,36,0.9);
       font-size: 11px;
+      min-width: 120px;
+      transition: all 0.12s ease;
     }
+
+    .inventory-item:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    #equipmentSlots {
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
     #characterPreviewContainer {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 6px 0 10px 0;
-      background: rgba(20,20,30,0.5);
-      border: 1px solid #333;
-      border-radius: 4px;
-      margin-bottom: 6px;
+      padding: 10px 0 12px 0;
+      background: rgba(16, 19, 28, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 10px;
     }
+
     #characterPreview {
       background: radial-gradient(circle at 50% 30%, rgba(120,120,160,0.15), rgba(0,0,0,0.8));
-      border: 1px solid #444;
-      border-radius: 4px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
     }
+
     .preview-caption {
-      font-size: 10px;
-      opacity: 0.8;
-      margin-top: 4px;
-    }
-    .inventory-item:hover {
-      border-color: #aaa;
-    }
-    #equipmentSlots {
-      margin-top: 8px;
-      border-top: 1px solid #333;
-      padding-top: 6px;
       font-size: 11px;
+      opacity: 0.8;
+      margin-top: 6px;
+      color: var(--muted);
     }
-    .equipment-slot {
-      margin-bottom: 4px;
-    }
+
     #customizationPanel label {
       display: block;
-      margin-top: 4px;
-      font-size: 11px;
+      margin-top: 6px;
+      font-size: 12px;
+      letter-spacing: 0.3px;
     }
+
     #customizationPanel select {
       width: 100%;
-      margin-top: 2px;
-      background: #111;
-      color: #ddd;
-      border: 1px solid #555;
-      border-radius: 3px;
-      font-size: 11px;
-      padding: 2px;
+      margin-top: 4px;
+      background: #0c0f18;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
     }
+
+    /* CHAT */
     #chatPanel {
       position: absolute;
-      right: 8px;
-      bottom: 8px;
-      width: 260px;
-      background: rgba(0,0,0,0.8);
-      border-radius: 4px;
-      border: 1px solid #333;
+      right: 18px;
+      bottom: 18px;
+      width: 320px;
+      background: rgba(14, 18, 26, 0.9);
+      border-radius: 12px;
+      border: 1px solid var(--border);
       pointer-events: auto;
       display: flex;
       flex-direction: column;
-      font-size: 11px;
+      font-size: 12px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+      overflow: hidden;
     }
+
+    #chatHeader {
+      background: rgba(255,255,255,0.03);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+    }
+
     #chatLog {
-      padding: 4px;
-      max-height: 180px;
+      padding: 8px 10px;
+      max-height: 220px;
       overflow-y: auto;
     }
-    .chat-line {
-      margin-bottom: 2px;
-    }
+
+    .chat-line { margin-bottom: 4px; }
+
     .chat-author {
-      color: #7dd;
+      color: var(--accent);
+      font-weight: 600;
     }
+
     #chatInputRow {
       display: flex;
-      border-top: 1px solid #333;
+      border-top: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
     }
+
     #chatInput {
       flex: 1;
       border: none;
-      background: #111;
-      color: #ddd;
-      padding: 3px;
-      font-size: 11px;
+      background: transparent;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 12px;
     }
+
+    #chatInput:focus { outline: none; }
+
     #chatSend {
       border: none;
-      background: #333;
-      color: #ddd;
-      padding: 3px 6px;
-      font-size: 11px;
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 12px;
       cursor: pointer;
+      letter-spacing: 0.6px;
+      transition: background 0.12s ease;
     }
-    #chatSend:hover {
-      background: #555;
-    }
+
+    #chatSend:hover { background: rgba(255,255,255,0.12); }
+
     #dialogBox {
       position: absolute;
       left: 50%;
-      bottom: 120px;
+      bottom: 150px;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.85);
-      padding: 6px 8px;
-      border-radius: 4px;
-      border: 1px solid #555;
-      max-width: 420px;
+      background: rgba(6, 8, 14, 0.92);
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      max-width: 520px;
       pointer-events: auto;
-      font-size: 12px;
+      font-size: 13px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.4);
     }
+
     #notificationLog {
       position: absolute;
       left: 50%;
-      top: 8px;
+      top: 18px;
       transform: translateX(-50%);
-      max-width: 480px;
+      max-width: 520px;
       text-align: center;
       pointer-events: none;
-      font-size: 11px;
+      font-size: 12px;
     }
+
     .notification {
-      background: rgba(20,20,40,0.9);
-      border-radius: 4px;
-      padding: 3px 6px;
-      margin-bottom: 3px;
-      border: 1px solid #444;
+      background: rgba(14, 18, 26, 0.9);
+      border-radius: 10px;
+      padding: 6px 10px;
+      margin-bottom: 6px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
     }
+
     #pointerHint {
       position: absolute;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.8);
-      padding: 8px 10px;
-      border-radius: 4px;
-      border: 1px solid #555;
+      background: rgba(6, 8, 14, 0.92);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
       pointer-events: none;
-      font-size: 12px;
+      font-size: 13px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.35);
     }
   </style>
 </head>
 <body>
-  <!-- 3D rendering canvas -->
   <canvas id="gameCanvas"></canvas>
 
-  <!-- UI overlay -->
   <div id="uiRoot">
-    <div id="topLeftInfo">
-      <div id="areaLabel">Starting...</div>
-      <div id="warStatus">War status: Initializing factions...</div>
+    <div id="vignette"></div>
+
+    <div id="hudStack">
+      <div id="clockDisplay">18:33:45</div>
+      <div id="hudCard">
+        <div id="hudHeader">Neo-Tokyo Patrol UI</div>
+        <div id="areaLabel">Starting...</div>
+        <div id="warStatus">War status: Initializing factions...</div>
+        <div id="healthBar">
+          <div id="healthFill"></div>
+          <div id="healthLabel">Vital Signs</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="topLeftButtons">
+      <button id="inventoryToggle" class="pillButton">Inventory (I)</button>
+      <button id="customizationToggle" class="pillButton">Character (C)</button>
     </div>
 
     <div id="bottomLeftHints">
-      <span>WASD: Move | Mouse: Look (click to capture)</span>
-      <span>Space: Jump | E: Interact</span>
-      <span>I: Inventory | C: Customize</span>
-    </div>
-
-    <div id="topRightButtons">
-      <button id="inventoryToggle">Inventory (I)</button>
-      <button id="customizationToggle">Character (C)</button>
+      <strong>Controls</strong><br/>
+      WASD: Move | Mouse: Look (click to capture)<br/>
+      Space: Jump | E: Interact<br/>
+      I: Inventory | C: Customize
     </div>
 
     <div id="inventoryPanel" class="panel hidden">
@@ -341,6 +503,7 @@
     </div>
 
     <div id="chatPanel">
+      <div id="chatHeader">Chat</div>
       <div id="chatLog"></div>
       <div id="chatInputRow">
         <input id="chatInput" type="text" placeholder="Type message..." />
@@ -357,7 +520,6 @@
     <div id="pointerHint">Click the game to capture the mouse.</div>
   </div>
 
-  <!-- Main entry point. All other scripts are ES modules imported from here. -->
   <script type="module" src="./main.js"></script>
 </body>
 </html>
