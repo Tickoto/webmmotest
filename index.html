@@ -1,0 +1,332 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>War Cities Prototype</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #050509;
+      color: #ddd;
+      font-family: sans-serif;
+    }
+    #gameCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: #000;
+    }
+    #uiRoot {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none; /* let clicks pass through unless overridden */
+      font-size: 13px;
+    }
+    #topLeftInfo {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    #areaLabel {
+      font-weight: bold;
+      font-size: 14px;
+    }
+    #warStatus {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+    #bottomLeftHints {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    #bottomLeftHints span {
+      display: block;
+      opacity: 0.9;
+    }
+    #topRightButtons {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: auto;
+    }
+    #topRightButtons button {
+      background: rgba(0,0,0,0.8);
+      color: #ddd;
+      border: 1px solid #555;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    #topRightButtons button:hover {
+      background: rgba(40,40,40,0.9);
+    }
+    .panel {
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 380px;
+      max-height: 60%;
+      background: rgba(5,5,10,0.95);
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 8px;
+      overflow: auto;
+      pointer-events: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 15px;
+    }
+    .hidden {
+      display: none;
+    }
+    #inventoryItems {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .inventory-item {
+      border: 1px solid #555;
+      padding: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: rgba(20,20,30,0.9);
+      font-size: 11px;
+    }
+    .inventory-item:hover {
+      border-color: #aaa;
+    }
+    #equipmentSlots {
+      margin-top: 8px;
+      border-top: 1px solid #333;
+      padding-top: 6px;
+      font-size: 11px;
+    }
+    .equipment-slot {
+      margin-bottom: 4px;
+    }
+    #customizationPanel label {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+    }
+    #customizationPanel select {
+      width: 100%;
+      margin-top: 2px;
+      background: #111;
+      color: #ddd;
+      border: 1px solid #555;
+      border-radius: 3px;
+      font-size: 11px;
+      padding: 2px;
+    }
+    #chatPanel {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 260px;
+      background: rgba(0,0,0,0.8);
+      border-radius: 4px;
+      border: 1px solid #333;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      font-size: 11px;
+    }
+    #chatLog {
+      padding: 4px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .chat-line {
+      margin-bottom: 2px;
+    }
+    .chat-author {
+      color: #7dd;
+    }
+    #chatInputRow {
+      display: flex;
+      border-top: 1px solid #333;
+    }
+    #chatInput {
+      flex: 1;
+      border: none;
+      background: #111;
+      color: #ddd;
+      padding: 3px;
+      font-size: 11px;
+    }
+    #chatSend {
+      border: none;
+      background: #333;
+      color: #ddd;
+      padding: 3px 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    #chatSend:hover {
+      background: #555;
+    }
+    #dialogBox {
+      position: absolute;
+      left: 50%;
+      bottom: 120px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      max-width: 420px;
+      pointer-events: auto;
+      font-size: 12px;
+    }
+    #notificationLog {
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      transform: translateX(-50%);
+      max-width: 480px;
+      text-align: center;
+      pointer-events: none;
+      font-size: 11px;
+    }
+    .notification {
+      background: rgba(20,20,40,0.9);
+      border-radius: 4px;
+      padding: 3px 6px;
+      margin-bottom: 3px;
+      border: 1px solid #444;
+    }
+    #pointerHint {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      pointer-events: none;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D rendering canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- UI overlay -->
+  <div id="uiRoot">
+    <div id="topLeftInfo">
+      <div id="areaLabel">Starting...</div>
+      <div id="warStatus">War status: Initializing factions...</div>
+    </div>
+
+    <div id="bottomLeftHints">
+      <span>WASD: Move | Mouse: Look (click to capture)</span>
+      <span>Space: Jump | E: Interact</span>
+      <span>I: Inventory | C: Customize</span>
+    </div>
+
+    <div id="topRightButtons">
+      <button id="inventoryToggle">Inventory (I)</button>
+      <button id="customizationToggle">Character (C)</button>
+    </div>
+
+    <div id="inventoryPanel" class="panel hidden">
+      <h2>Inventory</h2>
+      <div id="inventoryItems"></div>
+      <div id="equipmentSlots"></div>
+    </div>
+
+    <div id="customizationPanel" class="panel hidden">
+      <h2>Character Customization</h2>
+      <label>Gender
+        <select id="genderSelect">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </label>
+      <label>Body Preset
+        <select id="bodyPresetSelect">
+          <option value="slim">Slim</option>
+          <option value="average" selected>Average</option>
+          <option value="heavy">Heavy</option>
+        </select>
+      </label>
+      <label>Head Preset
+        <select id="headPresetSelect">
+          <option value="sharp">Sharp</option>
+          <option value="round" selected>Round</option>
+          <option value="angular">Angular</option>
+        </select>
+      </label>
+      <label>Skin Tone
+        <select id="skinToneSelect">
+          <option value="pale">Pale</option>
+          <option value="light" selected>Light</option>
+          <option value="tan">Tan</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label>Hair Style
+        <select id="hairStyleSelect">
+          <option value="short" selected>Short</option>
+          <option value="long">Long</option>
+          <option value="ponytail">Ponytail</option>
+        </select>
+      </label>
+      <label>Hair Color
+        <select id="hairColorSelect">
+          <option value="black">Black</option>
+          <option value="brown" selected>Brown</option>
+          <option value="blonde">Blonde</option>
+          <option value="red">Red</option>
+          <option value="neon">Neon</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="chatPanel">
+      <div id="chatLog"></div>
+      <div id="chatInputRow">
+        <input id="chatInput" type="text" placeholder="Type message..." />
+        <button id="chatSend">Send</button>
+      </div>
+    </div>
+
+    <div id="dialogBox" class="hidden">
+      <div id="dialogText"></div>
+    </div>
+
+    <div id="notificationLog"></div>
+
+    <div id="pointerHint">Click the game to capture the mouse.</div>
+  </div>
+
+  <!-- Main entry point. All other scripts are ES modules imported from here. -->
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
