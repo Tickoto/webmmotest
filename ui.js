@@ -37,6 +37,8 @@ export const UI = {
     this.clockDisplay = document.getElementById('clockDisplay');
     this.healthFill = document.getElementById('healthFill');
     this.healthLabel = document.getElementById('healthLabel');
+    this.clockOffsetMs = 0;
+    this._clockUpdateFn = null;
 
     // Inventory toggle buttons
     document
@@ -174,13 +176,20 @@ export const UI = {
   _startClock() {
     if (!this.clockDisplay) return;
     const update = () => {
-      const now = new Date();
+      const now = new Date(Date.now() + this.clockOffsetMs);
       const pad = (n) => String(n).padStart(2, '0');
       const label = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
       this.clockDisplay.textContent = label;
     };
+    this._clockUpdateFn = update;
     update();
     setInterval(update, 1000);
+  },
+
+  adjustClockHours(deltaHours) {
+    if (!Number.isFinite(deltaHours)) return;
+    this.clockOffsetMs += deltaHours * 60 * 60 * 1000;
+    if (this._clockUpdateFn) this._clockUpdateFn();
   },
 
   setHealth(amount) {
