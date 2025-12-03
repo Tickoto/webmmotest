@@ -154,6 +154,7 @@ document.addEventListener('keyup', (e) => {
 
 // Pointer lock & mouse look
 let mouseLocked = false;
+let dragLook = { active: false, lastX: 0, lastY: 0 };
 
 canvas.addEventListener('click', () => {
   canvas.requestPointerLock();
@@ -162,13 +163,52 @@ canvas.addEventListener('click', () => {
 document.addEventListener('pointerlockchange', () => {
   mouseLocked = document.pointerLockElement === canvas;
   pointerHint.style.display = mouseLocked ? 'none' : 'block';
+  if (mouseLocked) {
+    dragLook.active = false;
+  }
+});
+
+document.addEventListener('pointerlockerror', () => {
+  // When embedding the game (e.g. in some browsers or sandboxed frames),
+  // pointer lock can be denied. Fall back to a drag-to-look scheme so the
+  // player isn't stuck staring forward.
+  UI.showNotification('Pointer lock blocked. Drag with the mouse to look around.');
 });
 
 document.addEventListener('mousemove', (e) => {
-  if (!mouseLocked) return;
   const sensitivity = 0.0025;
-  cameraOrbit.yaw -= e.movementX * sensitivity;
-  cameraOrbit.pitch = Math.min(Math.max(cameraOrbit.pitch - e.movementY * sensitivity, -0.4), 0.9);
+
+  if (mouseLocked) {
+    cameraOrbit.yaw -= e.movementX * sensitivity;
+    cameraOrbit.pitch = Math.min(Math.max(cameraOrbit.pitch - e.movementY * sensitivity, -0.4), 0.9);
+    return;
+  }
+
+  if (!dragLook.active) return;
+
+  const dx = e.clientX - dragLook.lastX;
+  const dy = e.clientY - dragLook.lastY;
+  dragLook.lastX = e.clientX;
+  dragLook.lastY = e.clientY;
+
+  cameraOrbit.yaw -= dx * sensitivity;
+  cameraOrbit.pitch = Math.min(Math.max(cameraOrbit.pitch - dy * sensitivity, -0.4), 0.9);
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (mouseLocked || e.button !== 0) return;
+  dragLook.active = true;
+  dragLook.lastX = e.clientX;
+  dragLook.lastY = e.clientY;
+  pointerHint.style.display = 'none';
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button !== 0) return;
+  dragLook.active = false;
+  if (!mouseLocked) {
+    pointerHint.style.display = 'block';
+  }
 });
 
 // WINDOW RESIZE ---------------------------------------------------------------
