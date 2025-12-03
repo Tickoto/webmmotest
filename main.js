@@ -216,59 +216,66 @@ UI.refreshInventoryView(inventory);
 let lastTime = performance.now();
 
 function gameLoop(now) {
-  const dt = (now - lastTime) / 1000;
-  lastTime = now;
+  try {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
 
-  if (!Number.isFinite(dt) || dt <= 0) {
-    requestAnimationFrame(gameLoop);
-    return;
-  }
-
-  const clampedDt = Math.min(dt, 0.1); // avoid rare spikes that can destabilize physics
-
-  const input = {
-    forward: keys.KeyW,
-    backward: keys.KeyS,
-    left: keys.KeyA,
-    right: keys.KeyD,
-    jump: wantJump,
-    yaw: yaw,
-  };
-  wantJump = false; // consumed this frame
-
-  // Move player and handle collisions
-  const collisionFn = state.inInterior
-    ? (pos, radius) => interiorsManager.handleCollisions(pos, radius)
-    : (pos, radius) => worldManager.handleCollisions(pos, radius);
-
-  player.update(clampedDt, input, collisionFn);
-
-  // Update world or interiors
-  if (!state.inInterior) {
-    worldManager.update(player.position);
-    npcManager.update(clampedDt, player.position);
-
-    // Update "current area" label
-    const areaName = worldManager.getAreaNameForPosition(player.position);
-    if (areaName !== state.lastAreaName) {
-      state.lastAreaName = areaName;
-      UI.setAreaName(areaName);
+    if (!Number.isFinite(dt) || dt <= 0) {
+      requestAnimationFrame(gameLoop);
+      return;
     }
-  } else {
-    const areaName = `Inside: ${state.currentInteriorName}`;
-    if (areaName !== state.lastAreaName) {
-      state.lastAreaName = areaName;
-      UI.setAreaName(areaName);
+
+    const clampedDt = Math.min(dt, 0.1); // avoid rare spikes that can destabilize physics
+
+    const input = {
+      forward: keys.KeyW,
+      backward: keys.KeyS,
+      left: keys.KeyA,
+      right: keys.KeyD,
+      jump: wantJump,
+      yaw: yaw,
+    };
+    wantJump = false; // consumed this frame
+
+    // Move player and handle collisions
+    const collisionFn = state.inInterior
+      ? (pos, radius) => interiorsManager.handleCollisions(pos, radius)
+      : (pos, radius) => worldManager.handleCollisions(pos, radius);
+
+    player.update(clampedDt, input, collisionFn);
+
+    // Update world or interiors
+    if (!state.inInterior) {
+      worldManager.update(player.position);
+      npcManager.update(clampedDt, player.position);
+
+      // Update "current area" label
+      const areaName = worldManager.getAreaNameForPosition(player.position);
+      if (areaName !== state.lastAreaName) {
+        state.lastAreaName = areaName;
+        UI.setAreaName(areaName);
+      }
+    } else {
+      const areaName = `Inside: ${state.currentInteriorName}`;
+      if (areaName !== state.lastAreaName) {
+        state.lastAreaName = areaName;
+        UI.setAreaName(areaName);
+      }
     }
+
+    // Advance war simulation
+    warManager.update(clampedDt);
+    UI.updateWarStatus(warManager);
+
+    // Choose scene and render
+    const sceneToRender = state.inInterior ? interiorScene : worldScene;
+    renderer.render(sceneToRender, camera);
+  } catch (err) {
+    // Keep the loop alive even if a subsystem hiccups; log for debugging.
+    console.error('Game loop error', err);
+    UI.showNotification('A glitch occurred, attempting to recover...');
+    lastTime = now;
   }
-
-  // Advance war simulation
-  warManager.update(clampedDt);
-  UI.updateWarStatus(warManager);
-
-  // Choose scene and render
-  const sceneToRender = state.inInterior ? interiorScene : worldScene;
-  renderer.render(sceneToRender, camera);
 
   requestAnimationFrame(gameLoop);
 }
