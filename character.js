@@ -20,8 +20,8 @@ export class PlayerCharacter {
     this.bodyPreset = 'average';
     this.headPreset = 'round';
     this.skinTone = 'light';
-    this.hairStyle = 'short';
-    this.hairColorName = 'brown';
+    this.hairStyle = 'long';
+    this.hairColorName = 'red';
     this.baseHeight = 1.6;
     this.equipmentState = { head: null, torso: null, legs: null, feet: null, accessory: null };
     this.genderLabel = isFemale ? 'Female' : 'Male';
@@ -41,11 +41,11 @@ export class PlayerCharacter {
   }
 
   _buildBody() {
-    const bodyColor = 0xd0b090;
+    const bodyColor = 0xd8b59a;
     const bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
 
     // Torso
-    const torsoGeom = new THREE.BoxGeometry(0.9, 1.2, 0.4);
+    const torsoGeom = new THREE.BoxGeometry(0.9, 1.15, 0.4);
     this.torso = new THREE.Mesh(torsoGeom, bodyMat);
     this.torso.position.set(0, 1.6, 0);
     this.group.add(this.torso);
@@ -57,7 +57,7 @@ export class PlayerCharacter {
     this.group.add(this.head);
 
     // Legs
-    const legGeom = new THREE.BoxGeometry(0.35, 0.9, 0.35);
+    const legGeom = new THREE.BoxGeometry(0.34, 0.95, 0.34);
     this.leftLeg = new THREE.Mesh(legGeom, bodyMat);
     this.rightLeg = new THREE.Mesh(legGeom, bodyMat);
     this.leftLeg.position.set(-0.2, 0.7, 0);
@@ -75,15 +75,15 @@ export class PlayerCharacter {
     // Hair (multiple styles as meshes, we'll toggle)
     this.hairMeshes = {
       short: this._createHairMesh(0x201010),
-      long: this._createHairMesh(0x302010, true),
-      ponytail: this._createHairPonytailMesh(0x201020),
+      long: this._createHairMesh(0x702020, true),
+      ponytail: this._createHairPonytailMesh(0x702020),
     };
     for (const m of Object.values(this.hairMeshes)) {
       m.visible = false;
       this.group.add(m);
     }
-    this.currentHairStyle = 'short';
-    this.hairMeshes.short.visible = true;
+    this.currentHairStyle = 'long';
+    this.hairMeshes.long.visible = true;
 
     // Clothing overlay meshes per slot
     this.slotMeshes = {
@@ -99,12 +99,15 @@ export class PlayerCharacter {
     }
 
     // Default body preset
-    this.applyBodyPreset('average');
+    this.applyBodyPreset('slim');
+    this.applySkinTone(this.skinTone);
+    this.applyHairStyle(this.hairStyle);
+    this.applyHairColor(this.hairColorName);
   }
 
   _createHairMesh(color, long = false) {
     const geom = long
-      ? new THREE.BoxGeometry(0.7, 0.9, 0.6)
+      ? new THREE.BoxGeometry(0.72, 1.0, 0.62)
       : new THREE.BoxGeometry(0.7, 0.4, 0.6);
     const mat = new THREE.MeshLambertMaterial({ color });
     const hair = new THREE.Mesh(geom, mat);
@@ -137,24 +140,32 @@ export class PlayerCharacter {
   }
 
   _createTorsoClothing() {
-    const geom = new THREE.BoxGeometry(1.1, 1.3, 0.6);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x224466 });
+    const geom = new THREE.BoxGeometry(1.05, 1.05, 0.58);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x1a1a1d });
     const jacket = new THREE.Mesh(geom, mat);
-    jacket.position.set(0, 1.6, 0);
+    jacket.position.set(0, 1.58, 0);
+
+    // Accent shirt peeking through the jacket front
+    const accentGeom = new THREE.BoxGeometry(0.55, 0.7, 0.2);
+    const accentMat = new THREE.MeshLambertMaterial({ color: 0x6d1e1e });
+    const accent = new THREE.Mesh(accentGeom, accentMat);
+    accent.position.set(0, -0.02, -0.3);
+    jacket.add(accent);
+
     return jacket;
   }
 
   _createLegClothing() {
-    const geom = new THREE.BoxGeometry(0.8, 0.95, 0.6);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    const geom = new THREE.BoxGeometry(0.82, 1.0, 0.58);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x2f4b70 });
     const pants = new THREE.Mesh(geom, mat);
     pants.position.set(0, 0.7, 0);
     return pants;
   }
 
   _createFeetClothing() {
-    const geom = new THREE.BoxGeometry(0.9, 0.3, 0.9);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const geom = new THREE.BoxGeometry(0.9, 0.32, 0.9);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x0e0e0f });
     const boots = new THREE.Mesh(geom, mat);
     boots.position.set(0, 0.25, 0);
     return boots;

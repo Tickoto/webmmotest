@@ -91,7 +91,7 @@ const npcManager = new NpcManager(worldScene, nameGen, warManager);
 
 // Player character
 const startingPos = new THREE.Vector3(0, 1.6, 0);
-const player = new PlayerCharacter(worldScene, /*isFemale*/ false, startingPos);
+const player = new PlayerCharacter(worldScene, /*isFemale*/ true, startingPos);
 player.attachCamera(camera);
 const username = prompt('Enter your username', 'Guest');
 player.setDisplayName(username || 'Guest');
@@ -197,6 +197,19 @@ UI.init({
 
 // Seed some starter items into the inventory and render UI
 inventory.addStarterItems();
+// Default look inspired by the cyber-street vibe screenshot
+characterCustomizer.applyOptions({
+  gender: 'female',
+  height: 'medium',
+  bodyPreset: 'slim',
+  headPreset: 'sharp',
+  skinTone: 'light',
+  hairStyle: 'long',
+  hairColor: 'red',
+});
+inventory.equip('jacket_black');
+inventory.equip('pants_jeans');
+inventory.equip('boots_combat');
 UI.refreshInventoryView(inventory);
 
 // GAME LOOP -------------------------------------------------------------------
@@ -205,6 +218,13 @@ let lastTime = performance.now();
 function gameLoop(now) {
   const dt = (now - lastTime) / 1000;
   lastTime = now;
+
+  if (!Number.isFinite(dt) || dt <= 0) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  const clampedDt = Math.min(dt, 0.1); // avoid rare spikes that can destabilize physics
 
   const input = {
     forward: keys.KeyW,
@@ -221,12 +241,12 @@ function gameLoop(now) {
     ? (pos, radius) => interiorsManager.handleCollisions(pos, radius)
     : (pos, radius) => worldManager.handleCollisions(pos, radius);
 
-  player.update(dt, input, collisionFn);
+  player.update(clampedDt, input, collisionFn);
 
   // Update world or interiors
   if (!state.inInterior) {
     worldManager.update(player.position);
-    npcManager.update(dt, player.position);
+    npcManager.update(clampedDt, player.position);
 
     // Update "current area" label
     const areaName = worldManager.getAreaNameForPosition(player.position);
@@ -243,7 +263,7 @@ function gameLoop(now) {
   }
 
   // Advance war simulation
-  warManager.update(dt);
+  warManager.update(clampedDt);
   UI.updateWarStatus(warManager);
 
   // Choose scene and render
