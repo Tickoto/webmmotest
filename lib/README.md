@@ -1,0 +1,1 @@
+Drop a local copy of three.module.js (matching three@0.165.0) into this folder to run the game without the CDN. The three-loader module will automatically pick it up when the CDN is blocked or unavailable.

@@ -26,7 +26,8 @@
 //   - UI, chat, notifications
 // -----------------------------------------------------------------------------
 
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { loadThree } from './three-loader.js';
+const THREE = await loadThree();
 import { NameGenerator, seededRandom } from './utils.js';
 import { WorldManager, CHUNK_SIZE } from './world.js';
 import { InteriorsManager } from './interiors.js';

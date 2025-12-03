@@ -10,8 +10,10 @@
 // Exterior collisions are handled as 2D AABB vs player circle.
 // -----------------------------------------------------------------------------
 
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { loadThree } from './three-loader.js';
 import { seededRandom } from './utils.js';
+
+const THREE = await loadThree();
 
 export const CHUNK_SIZE = 80; // world units per chunk
 
